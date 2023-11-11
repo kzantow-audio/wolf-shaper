@@ -7,8 +7,7 @@
  */
 
 #include "DistrhoPlugin.hpp"
-#include "extra/Mutex.hpp"
-#include "extra/ScopedPointer.hpp"
+#include "extra/ScopedDenormalDisable.hpp"
 
 #include <cmath>
 #include <cstdio>
@@ -16,6 +15,12 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+
+#ifdef __MINGW32__
+#include "extra/Mutex.hpp"
+#else
+#include <mutex>
+#endif
 
 #include "Graph.hpp"
 #include "Mathf.hpp"
@@ -68,7 +73,7 @@ protected:
 
     uint32_t getVersion() const noexcept override
     {
-        return d_version(0, 1, 8);
+        return d_version(1, 0, 2);
     }
 
     int64_t getUniqueId() const noexcept override
@@ -89,7 +94,7 @@ protected:
             parameter.ranges.min = 0.0f;
             parameter.ranges.max = 2.0f;
             parameter.ranges.def = 1.0f;
-            parameter.hints = kParameterIsAutomable | kParameterIsLogarithmic;
+            parameter.hints = kParameterIsAutomatable;
             break;
         case paramWet:
             parameter.name = "Wet";
@@ -97,7 +102,7 @@ protected:
             parameter.ranges.min = 0.0f;
             parameter.ranges.max = 1.0f;
             parameter.ranges.def = 1.0f;
-            parameter.hints = kParameterIsAutomable;
+            parameter.hints = kParameterIsAutomatable;
             break;
         case paramPostGain:
             parameter.name = "Post Gain";
@@ -105,7 +110,7 @@ protected:
             parameter.ranges.min = 0.0f;
             parameter.ranges.max = 1.0f;
             parameter.ranges.def = 1.0f;
-            parameter.hints = kParameterIsAutomable | kParameterIsLogarithmic;
+            parameter.hints = kParameterIsAutomatable;
             break;
         case paramRemoveDC:
             parameter.name = "Remove DC Offset";
@@ -113,7 +118,7 @@ protected:
             parameter.ranges.min = 0.0f;
             parameter.ranges.max = 1.0f;
             parameter.ranges.def = 1.0f;
-            parameter.hints = kParameterIsAutomable | kParameterIsBoolean | kParameterIsInteger;
+            parameter.hints = kParameterIsAutomatable | kParameterIsBoolean | kParameterIsInteger;
             break;
         case paramOversample:
             //None, 2x, 4x, 8x, 16x
@@ -122,7 +127,23 @@ protected:
             parameter.ranges.min = 0.0f;
             parameter.ranges.max = 4.0f;
             parameter.ranges.def = 0.0f;
-            parameter.hints = kParameterIsAutomable | kParameterIsInteger;
+            parameter.hints = kParameterIsAutomatable | kParameterIsInteger;
+            parameter.enumValues.count = 5;
+            parameter.enumValues.restrictedMode = true;
+            {
+                ParameterEnumerationValue* const values = new ParameterEnumerationValue[5];
+                parameter.enumValues.values = values;
+                values[0].label = "None";
+                values[0].value = 0.f;
+                values[1].label = "2x";
+                values[1].value = 1.f;
+                values[2].label = "4x";
+                values[2].value = 2.f;
+                values[3].label = "8x";
+                values[3].value = 3.f;
+                values[4].label = "16x";
+                values[4].value = 4.f;
+            }
             break;
         case paramBipolarMode:
             parameter.name = "Bipolar Mode";
@@ -130,7 +151,17 @@ protected:
             parameter.ranges.min = 0.0f;
             parameter.ranges.max = 1.0f;
             parameter.ranges.def = 0.0f;
-            parameter.hints = kParameterIsAutomable | kParameterIsBoolean | kParameterIsInteger;
+            parameter.hints = kParameterIsAutomatable | kParameterIsBoolean | kParameterIsInteger;
+            parameter.enumValues.count = 2;
+            parameter.enumValues.restrictedMode = true;
+            {
+                ParameterEnumerationValue* const values = new ParameterEnumerationValue[2];
+                parameter.enumValues.values = values;
+                values[0].label = "Unipolar";
+                values[0].value = 0.f;
+                values[1].label = "Bipolar";
+                values[1].value = 1.f;
+            }
             break;
         case paramHorizontalWarpType:
             //None, Bend +, Bend -, Bend +/-, Skew +, Skew -, Skew +/-
@@ -139,7 +170,27 @@ protected:
             parameter.ranges.min = 0.0f;
             parameter.ranges.max = 6.0f;
             parameter.ranges.def = 0.0f;
-            parameter.hints = kParameterIsAutomable | kParameterIsInteger;
+            parameter.hints = kParameterIsAutomatable | kParameterIsInteger;
+            parameter.enumValues.count = 7;
+            parameter.enumValues.restrictedMode = true;
+            {
+                ParameterEnumerationValue* const values = new ParameterEnumerationValue[7];
+                parameter.enumValues.values = values;
+                values[0].label = "None";
+                values[0].value = 0.f;
+                values[1].label = "Bend +";
+                values[1].value = 1.f;
+                values[2].label = "Bend -";
+                values[2].value = 2.f;
+                values[3].label = "Bend +/-";
+                values[3].value = 3.f;
+                values[4].label = "Skew +";
+                values[4].value = 4.f;
+                values[5].label = "Skew -";
+                values[5].value = 5.f;
+                values[6].label = "Skew +/-";
+                values[6].value = 6.f;
+            }
             break;
         case paramHorizontalWarpAmount:
             parameter.name = "H Warp Amount";
@@ -147,7 +198,7 @@ protected:
             parameter.ranges.min = 0.0f;
             parameter.ranges.max = 1.0f;
             parameter.ranges.def = 0.0f;
-            parameter.hints = kParameterIsAutomable;
+            parameter.hints = kParameterIsAutomatable;
             break;
         case paramVerticalWarpType:
             //None, Bend +, Bend -, Bend +/-, Skew +, Skew -, Skew +/-
@@ -156,7 +207,27 @@ protected:
             parameter.ranges.min = 0.0f;
             parameter.ranges.max = 6.0f;
             parameter.ranges.def = 0.0f;
-            parameter.hints = kParameterIsAutomable | kParameterIsInteger;
+            parameter.hints = kParameterIsAutomatable | kParameterIsInteger;
+            parameter.enumValues.count = 7;
+            parameter.enumValues.restrictedMode = true;
+            {
+                ParameterEnumerationValue* const values = new ParameterEnumerationValue[7];
+                parameter.enumValues.values = values;
+                values[0].label = "None";
+                values[0].value = 0.f;
+                values[1].label = "Bend +";
+                values[1].value = 1.f;
+                values[2].label = "Bend -";
+                values[2].value = 2.f;
+                values[3].label = "Bend +/-";
+                values[3].value = 3.f;
+                values[4].label = "Skew +";
+                values[4].value = 4.f;
+                values[5].label = "Skew -";
+                values[5].value = 5.f;
+                values[6].label = "Skew +/-";
+                values[6].value = 6.f;
+            }
             break;
         case paramVerticalWarpAmount:
             parameter.name = "V Warp Amount";
@@ -164,7 +235,7 @@ protected:
             parameter.ranges.min = 0.0f;
             parameter.ranges.max = 1.0f;
             parameter.ranges.def = 0.0f;
-            parameter.hints = kParameterIsAutomable;
+            parameter.hints = kParameterIsAutomatable;
             break;
         case paramOut:
             parameter.name = "Out";
@@ -201,22 +272,27 @@ protected:
         }
     }
 
-    void initState(uint32_t index, String &stateKey, String &defaultStateValue) override
+    void initState(uint32_t index, State &state) override
     {
         switch (index)
         {
         case 0:
-            stateKey = "graph";
+            state.key = "graph";
+            state.label = "Graph";
+
+            // generated using printf("%A,%A,%A,%d;%A,%A,%A,%d;\n", 0.0f, 0.0f, 0.0f, wolf::CurveType::Exponential, 1.0f, 1.0f, 0.0f, wolf::CurveType::Exponential);
+            state.defaultValue = String("0x0p+0,0x0p+0,0x0p+0,0;0x1p+0,0x1p+0,0x0p+0,0;");
             break;
         }
-
-        //generated with fprintf(stderr, "%A,%A,%A,%d;%A,%A,%A,%d;\n", 0.0f, 0.0f, 0.0f, wolf::CurveType::Exponential, 1.0f, 1.0f, 0.0f, wolf::CurveType::Exponential);
-        defaultStateValue = String("0x0p+0,0x0p+0,0x0p+0,0;0x1p+0,0x1p+0,0x0p+0,0;");
     }
 
     void setState(const char *key, const char *value) override
     {
+#ifdef __MINGW32__
         const MutexLocker cml(mutex);
+#else
+        const std::lock_guard<std::mutex> lock(mutex);
+#endif
 
         if (std::strcmp(key, "graph") == 0)
         {
@@ -300,7 +376,13 @@ protected:
 
     void run(const float **inputs, float **outputs, uint32_t frames) override
     {
+        const ScopedDenormalDisable sdd;
+
+#ifdef __MINGW32__
         const auto lockSucceeded = mutex.tryLock();
+#else
+        const auto lockSucceeded = mutex.try_lock();
+#endif
 
         if (lockSucceeded)
         {
@@ -410,7 +492,11 @@ private:
     float inputIndicatorPos;
     float inputIndicatorAcceleration;
 
+#ifdef __MINGW32__
     Mutex mutex;
+#else
+    std::mutex mutex;
+#endif
 
     float removeDCPrev[2];
 
